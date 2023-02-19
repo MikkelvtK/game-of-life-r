@@ -5,6 +5,7 @@ use std::ops::{Index, Range};
 // TODO: Look up usefull derive traits for Grid struct
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
+type Matrix = Vec<Vec<Cell>>;
 
 const WIDTH: usize = 60;
 const HEIGHT: usize = 20;
@@ -31,7 +32,7 @@ struct Pos(usize, usize);
 
 #[derive(Debug)]
 struct Grid {
-    data: Vec<Vec<Cell>>,
+    data: Matrix,
     width: usize,
     height: usize
 }
@@ -83,7 +84,8 @@ impl Grid {
                 }
             })
             .collect::<MyResult<Vec<Cell>>>()
-        ).collect::<MyResult<Vec<Vec<Cell>>>>();
+        )
+        .collect::<MyResult<Matrix>>();
 
         Ok(Grid { data: data?, width: prev.width, height: prev.height })
     }

@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::ops::Index;
+use std::ops::{Index, Range};
 
 // TODO: Follow project naming conventions
 // TODO: Look up usefull derive traits for Grid struct
@@ -26,6 +26,9 @@ impl Cell {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Pos(usize, usize);
+
 #[derive(Debug)]
 struct Grid {
     data: Vec<Vec<Cell>>,
@@ -34,29 +37,13 @@ struct Grid {
 }
 
 impl Grid {
-    fn from(prev: Grid) -> Self {
-        unimplemented!()
-    }
+    fn new(width: usize, height: usize) -> Self {
+        let mut grid = Vec::with_capacity(width);
+        
+        for _ in 0..width + 1 {
+            let mut column = Vec::with_capacity(height);
 
-    fn get_neighbours(&self, coord: (usize, usize)) -> Vec<&Cell> {
-        unimplemented!()
-    }
-
-    // TODO: Create contains individual cell function
-
-    // TODO: Move to separate module
-}
-
-impl Default for Grid {
-
-    // TODO: Create new function, move this algo and call new from here
-    fn default() -> Self {
-        let mut grid = Vec::with_capacity(WIDTH);
-    
-        for _ in 0..WIDTH + 1 {
-            let mut column = Vec::with_capacity(HEIGHT);
-
-            for _ in 0..HEIGHT + 1 {
+            for _ in 0..height + 1 {
                 if rand::random() {
                     column.push(Cell::Living(LIVING_CELL));
                 } else {
@@ -67,7 +54,34 @@ impl Default for Grid {
             grid.push(column);
         }
 
-        Self { data: grid, width: WIDTH, height: HEIGHT }
+        Self { data: grid, width, height }
+    }
+
+    fn from(prev: Grid) -> Self {
+        unimplemented!()
+    }
+
+    fn get_neighbours(&self, p: Pos) -> Vec<&Cell>{
+        let m_range = get_neighbours_range(p.0, self.width);
+        let n_range = get_neighbours_range(p.1, self.height);
+
+        m_range
+            .flat_map(|m| n_range.clone().map(move |n| Pos(m, n)))
+            .filter(|&q| q != p)
+            .map(|q| &self[q.0][q.1])
+            .collect()
+    }
+
+    fn contains(&self, cell_pos: Pos) -> bool {
+        cell_pos.0 < self.width && cell_pos.1 < self.height
+    }
+
+    // TODO: Move to separate module
+}
+
+impl Default for Grid {
+    fn default() -> Self {
+        Self::new(WIDTH, HEIGHT)
     }
 }
 
@@ -87,29 +101,54 @@ pub fn run() -> MyResult<()> {
     Ok(())
 }
 
-// TODO: Expand to retrieve neighbours and then count them
-fn num_living_neighbours(neighbours: &[Cell]) -> MyResult<usize> {
-    if neighbours.is_empty() {
-        return Err(From::from("no neighbouring cells were found"));
+fn num_living_neighbours(cell_pos: Pos, grid: &Grid) -> MyResult<usize> {
+    if grid.contains(cell_pos) {
+        let neighbours = grid.get_neighbours(cell_pos);
+
+        return Ok(neighbours.into_iter().filter(|x| x.is_alive()).count());
     }
 
-    Ok(neighbours.into_iter().filter(|x| x.is_alive()).count())
+    Err(From::from("illegal cell position accessed"))
+}
+
+fn get_neighbours_range(n: usize, limit: usize) -> Range<usize> {
+    let lower = if n > 0 { n - 1 } else { 0 };
+    let upper = if n < limit - 1 { n + 2 } else { limit };
+
+    lower..upper
 }
 
 #[cfg(test)]
 mod test {
     use super::num_living_neighbours;
+    use super::{Grid, Pos};
     use super::Cell::*;
 
     #[test]
     fn test_num_living_neighbours() {
-        let neighbours = vec![Living(35), Living(35), Dead(32)];
-        assert_eq!(num_living_neighbours(&neighbours).unwrap(), 2);
+        let grid = Grid {
+            data: vec![
+                vec![Living(0), Dead(0), Dead(0)],
+                vec![Dead(0), Living(0), Dead(0)],
+                vec![Living(0), Dead(0), Dead(0)]
+            ],
+            width: 3,
+            height: 3
+        };
 
-        let neighbours = vec![Dead(35), Dead(35), Dead(32)];
-        assert_eq!(num_living_neighbours(&neighbours).unwrap(), 0);
+        let n = num_living_neighbours(Pos(1, 1), &grid);
+        assert!(n.is_ok());
+        assert_eq!(n.unwrap(), 2);
 
-        let neighbours = vec![];
-        assert!(num_living_neighbours(&neighbours).is_err());
+        let n = num_living_neighbours(Pos(2, 2), &grid);
+        assert!(n.is_ok());
+        assert_eq!(n.unwrap(), 1);
+
+        let n = num_living_neighbours(Pos(0, 0), &grid);
+        assert!(n.is_ok());
+        assert_eq!(n.unwrap(), 1);
+
+        let n = num_living_neighbours(Pos(3, 0), &grid);
+        assert!(n.is_err());
     }
 }

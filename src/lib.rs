@@ -57,8 +57,35 @@ impl Grid {
         Self { data: grid, width, height }
     }
 
-    fn from(prev: Grid) -> Self {
-        unimplemented!()
+    fn from(prev: Grid) -> MyResult<Self> {
+        let i_range = 0..prev.width;
+        let j_range = 0..prev.height;
+
+        let data = i_range
+            .map(|i| j_range.clone().map(|j| {
+                let num_living = num_living_neighbours(Pos(i, j), &prev)?;
+
+                match &prev[i][j] {
+                    Cell::Living(b) => {
+                        if num_living == 2 || num_living == 3 {
+                            Ok(Cell::Living(*b))
+                        } else {
+                            Ok(Cell::Dead(DEAD_CELL))
+                        }
+                    },
+                    Cell::Dead(b) => {
+                        if num_living == 3 {
+                            Ok(Cell::Living(*b))
+                        } else {
+                            Ok(Cell::Dead(*b))
+                        }
+                    }
+                }
+            })
+            .collect::<MyResult<Vec<Cell>>>()
+        ).collect::<MyResult<Vec<Vec<Cell>>>>();
+
+        Ok(Grid { data: data?, width: prev.width, height: prev.height })
     }
 
     fn get_neighbours(&self, p: Pos) -> Vec<&Cell>{
@@ -96,7 +123,11 @@ impl Index<usize> for Grid {
 pub fn run() -> MyResult<()> {
     
     let grid = Grid::default();
-    println!("{:?}", grid[0][0]);
+    println!("First: {:?}", grid[0][0]);
+
+    let second = Grid::from(grid)?;
+    println!("Second: {:?}", second[0][0]);
+
 
     Ok(())
 }

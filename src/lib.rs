@@ -1,5 +1,8 @@
 use std::error::Error;
+use std::io::{self, BufWriter, Write};
 use std::ops::{Index, Range};
+use std::thread;
+use std::time::Duration;
 
 // TODO: Follow project naming conventions
 // TODO: Look up usefull derive traits for Grid struct
@@ -23,6 +26,14 @@ impl Cell {
         match self {
             Cell::Living(_) => true,
             Cell::Dead(_) => false
+        }
+    }
+
+    fn set_state(&self, n: usize) -> Self {
+        match self {
+            Cell::Living(b) if n == 3 || n ==2 => Cell::Living(*b),
+            Cell::Dead(_) if n == 3 => Cell::Living(LIVING_CELL),
+            _ => Cell::Dead(DEAD_CELL)
         }
     }
 }
@@ -58,34 +69,20 @@ impl Grid {
         Self { data: grid, width, height }
     }
 
-    fn from(prev: Grid) -> MyResult<Self> {
+    fn from(prev: &Grid) -> MyResult<Self> {
         let i_range = 0..prev.width;
         let j_range = 0..prev.height;
 
         let data = i_range
-            .map(|i| j_range.clone().map(|j| {
-                let num_living = num_living_neighbours(Pos(i, j), &prev)?;
+            .map(|i| j_range.clone()
+                .map(|j| {
+                    let num_living_neighbours = num_living_neighbours(Pos(i, j), &prev)?;
 
-                match &prev[i][j] {
-                    Cell::Living(b) => {
-                        if num_living == 2 || num_living == 3 {
-                            Ok(Cell::Living(*b))
-                        } else {
-                            Ok(Cell::Dead(DEAD_CELL))
-                        }
-                    },
-                    Cell::Dead(b) => {
-                        if num_living == 3 {
-                            Ok(Cell::Living(*b))
-                        } else {
-                            Ok(Cell::Dead(*b))
-                        }
-                    }
-                }
-            })
-            .collect::<MyResult<Vec<Cell>>>()
-        )
-        .collect::<MyResult<Matrix>>();
+                    Ok(prev[i][j].set_state(num_living_neighbours))
+                })
+                .collect::<MyResult<Vec<Cell>>>()
+            )
+            .collect::<MyResult<Matrix>>();
 
         Ok(Grid { data: data?, width: prev.width, height: prev.height })
     }
@@ -103,6 +100,18 @@ impl Grid {
 
     fn contains(&self, cell_pos: Pos) -> bool {
         cell_pos.0 < self.width && cell_pos.1 < self.height
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        self.data
+            .iter()
+            .flat_map(|col| col.iter().map(|cell| {
+                match cell {
+                    Cell::Living(b) => *b,
+                    Cell::Dead(b) => *b
+                }
+            }))
+            .collect()
     }
 
     // TODO: Move to separate module
@@ -123,13 +132,27 @@ impl Index<usize> for Grid {
 }
 
 pub fn run() -> MyResult<()> {
-    
     let grid = Grid::default();
-    println!("First: {:?}", grid[0][0]);
+    let handle = io::stdout().lock();
+    let mut writer = BufWriter::new(handle);
 
-    let second = Grid::from(grid)?;
-    println!("Second: {:?}", second[0][0]);
+    writer.write_all(&grid.to_bytes())?;
 
+    let mut n = 0;
+
+    // TODO: Write width amount of bytes => Write \n
+    loop {
+        let grid = Grid::from(&grid)?;
+
+        writer.write_all(&grid.to_bytes())?;
+
+        thread::sleep(Duration::from_secs(1));
+        n += 1;
+
+        if n == 20 {
+            break
+        }
+    }
 
     Ok(())
 }
@@ -138,7 +161,7 @@ fn num_living_neighbours(cell_pos: Pos, grid: &Grid) -> MyResult<usize> {
     if grid.contains(cell_pos) {
         let neighbours = grid.get_neighbours(cell_pos);
 
-        return Ok(neighbours.into_iter().filter(|x| x.is_alive()).count());
+        return Ok(neighbours.iter().filter(|x| x.is_alive()).count());
     }
 
     Err(From::from("illegal cell position accessed"))

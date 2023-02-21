@@ -24,7 +24,7 @@ const LIVING_CELL: u8 = b'#';
 const DEAD_CELL: u8 = b' ';
 const SEPARATOR: [u8; 5] = [b'\n'; 5];
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Cell {
     Living(u8),
     Dead(u8)
@@ -50,7 +50,7 @@ impl Cell {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Pos(usize, usize);
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct Grid {
     data: Matrix,
     width: usize,
@@ -58,6 +58,8 @@ struct Grid {
 }
 
 impl Grid {
+
+    // TODO: Use iterators for creating a grid
     fn new(width: usize, height: usize) -> Self {
         let mut grid = Vec::with_capacity(width);
         
@@ -152,9 +154,7 @@ pub fn run() -> MyResult<()> {
 
         print_grid(&grid, &mut handler)?;
 
-        thread::sleep(Duration::from_secs(1));
         n += 1;
-
         if n == 60 {
             break
         }
@@ -172,6 +172,8 @@ fn print_grid(grid: &Grid, mut handler: impl Write) -> MyResult<()> {
     }
     handler.flush()?;
 
+    thread::sleep(Duration::from_secs(1));
+
     Ok(())
 }
 
@@ -179,6 +181,7 @@ fn num_living_neighbours(cell_pos: Pos, grid: &Grid) -> MyResult<usize> {
     if grid.contains(cell_pos) {
         let neighbours = grid.get_neighbours(cell_pos);
 
+        // TODO: Can I reduce references here?
         return Ok(neighbours.iter().filter(|x| x.is_alive()).count());
     }
 
@@ -194,6 +197,8 @@ fn get_neighbours_range(n: usize, limit: usize) -> Range<usize> {
 
 #[cfg(test)]
 mod test {
+    use crate::{LIVING_CELL, DEAD_CELL};
+
     use super::num_living_neighbours;
     use super::{Grid, Pos};
     use super::Cell::*;
@@ -224,5 +229,60 @@ mod test {
 
         let n = num_living_neighbours(Pos(3, 0), &grid);
         assert!(n.is_err());
+    }
+
+    #[test]
+    fn test_grid_from() {
+        let grid = Grid {
+            data: vec![
+                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
+                vec![Dead(DEAD_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
+                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)]
+            ],
+            width: 4,
+            height: 3
+        };
+
+        let should_be = Grid {
+            data: vec![
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
+                vec![Living(LIVING_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)]
+            ],
+            width: 4,
+            height: 3
+        };
+
+        let next = Grid::from(&grid);
+        assert!(next.is_ok());
+        assert_eq!(next.unwrap(), should_be);
+
+        let grid = Grid {
+            data: vec![
+                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
+                vec![Dead(DEAD_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
+                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Living(LIVING_CELL)],
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Living(LIVING_CELL)]
+            ],
+            width: 4,
+            height: 3
+        };
+
+        let should_be = Grid {
+            data: vec![
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
+                vec![Living(LIVING_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
+                vec![Dead(DEAD_CELL), Dead(DEAD_CELL),Living(LIVING_CELL)],
+                vec![Dead(DEAD_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)]
+            ],
+            width: 4,
+            height: 3
+        };
+
+        let next = Grid::from(&grid);
+        assert!(next.is_ok());
+        assert_eq!(next.unwrap(), should_be);
     }
 }

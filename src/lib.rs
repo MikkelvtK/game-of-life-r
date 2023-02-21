@@ -9,7 +9,10 @@ use std::time::Duration;
 // TODO: Look up usefull derive traits for Grid struct
 // TODO: Add documentation
 // TODO: Split project up in modules
-// TODO: Add Crossterm for terminal access to clear screen
+// TODO: Add Crossterm for terminal access
+    // - Give user to stop simulation gracefully
+    // - Center grid
+    // - Clear screen after printing 
 // TODO: Add user options
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -37,7 +40,7 @@ impl Cell {
 
     fn set_state(&self, n: usize) -> Self {
         match self {
-            Cell::Living(b) if n == 3 || n ==2 => Cell::Living(*b),
+            Cell::Living(_) if n == 3 || n ==2 => Cell::Living(LIVING_CELL),
             Cell::Dead(_) if n == 3 => Cell::Living(LIVING_CELL),
             _ => Cell::Dead(DEAD_CELL)
         }
@@ -121,8 +124,6 @@ impl Grid {
             }).collect())
             .collect()
     }
-
-    // TODO: Move to separate module
 }
 
 impl Default for Grid {

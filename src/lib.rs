@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::io::Write;
+use std::io::{Write, BufWriter};
 use std::io;
 use std::ops::{Index, Range};
 use std::thread;
@@ -40,9 +40,9 @@ impl Cell {
 
     fn set_state(&self, n: usize) -> Self {
         match self {
-            Cell::Living(_) if n == 3 || n ==2 => Cell::Living(LIVING_CELL),
-            Cell::Dead(_) if n == 3 => Cell::Living(LIVING_CELL),
-            _ => Cell::Dead(DEAD_CELL)
+            Cell::Living(_) if n == 3 || n ==2 => Self::Living(LIVING_CELL),
+            Cell::Dead(_) if n == 3 => Self::Living(LIVING_CELL),
+            _ => Self::Dead(DEAD_CELL)
         }
     }
 }
@@ -58,26 +58,22 @@ struct Grid {
 }
 
 impl Grid {
-
-    // TODO: Use iterators for creating a grid
     fn new(width: usize, height: usize) -> Self {
-        let mut grid = Vec::with_capacity(width);
-        
-        for _ in 0..width + 1 {
-            let mut column = Vec::with_capacity(height);
+        let i_range = 0..width;
+        let j_range = 0..height;
 
-            for _ in 0..height + 1 {
-                if rand::random() {
-                    column.push(Cell::Living(LIVING_CELL));
-                } else {
-                    column.push(Cell::Dead(DEAD_CELL));
-                }
-            }
+        let data = i_range
+            .map(|_| j_range.clone()
+                .map(|_| {
+                    if rand::random() {
+                        Cell::Living(LIVING_CELL)
+                    } else {
+                        Cell::Dead(DEAD_CELL)
+                    }
+                }).collect()
+            ).collect::<Matrix>();
 
-            grid.push(column);
-        }
-
-        Self { data: grid, width, height }
+        Self { data, width, height }
     }
 
     fn from(prev: &Grid) -> MyResult<Self> {
@@ -90,10 +86,8 @@ impl Grid {
                     let num_living_neighbours = num_living_neighbours(Pos(i, j), &prev)?;
 
                     Ok(prev[i][j].set_state(num_living_neighbours))
-                })
-                .collect()
-            )
-            .collect::<MyResult<Matrix>>();
+                }).collect()
+            ).collect::<MyResult<Matrix>>();
 
         Ok(Self { data: data?, width: prev.width, height: prev.height })
     }
@@ -113,17 +107,17 @@ impl Grid {
         cell_pos.0 < self.width && cell_pos.1 < self.height
     }
 
-    fn to_bytes(&self) -> Vec<Vec<u8>> {
+    fn to_bytes(&self) -> Vec<u8> {
         let height_range = 0..self.height;
         let width_range = 0..self.width;
 
         height_range
-            .map(|n| width_range.clone().map(|m| {
+            .flat_map(|n| width_range.clone().map(move |m| {
                 match &self[m][n] {
                     Cell::Living(b) => *b,
                     Cell::Dead(b) => *b
                 }
-            }).collect())
+            }))
             .collect()
     }
 }
@@ -144,7 +138,8 @@ impl Index<usize> for Grid {
 
 pub fn run() -> MyResult<()> {
     let mut grid = Grid::default();
-    let mut handler = io::stdout().lock();
+    let stdout = io::stdout().lock();
+    let mut handler = BufWriter::new(stdout);
 
     print_grid(&grid, &mut handler)?;
 
@@ -165,13 +160,17 @@ pub fn run() -> MyResult<()> {
 
 fn print_grid(grid: &Grid, mut handler: impl Write) -> MyResult<()> {
     let bytes = grid.to_bytes();
-    handler.write(&SEPARATOR)?;
-    for line in bytes {
-        handler.write_all(&line)?;
-        handler.write(b"\n")?;
-    }
-    handler.flush()?;
+    let mut line_start = 0;
 
+    handler.write(&SEPARATOR)?;
+    while line_start != grid.width * grid.height {
+        let next_line = line_start..line_start + grid.width;
+        let bytes_written = handler.write(&bytes[next_line])?;
+        handler.write(b"\n")?;
+        line_start += bytes_written;
+    }
+
+    handler.flush()?;
     thread::sleep(Duration::from_secs(1));
 
     Ok(())
@@ -181,8 +180,7 @@ fn num_living_neighbours(cell_pos: Pos, grid: &Grid) -> MyResult<usize> {
     if grid.contains(cell_pos) {
         let neighbours = grid.get_neighbours(cell_pos);
 
-        // TODO: Can I reduce references here?
-        return Ok(neighbours.iter().filter(|x| x.is_alive()).count());
+        return Ok(neighbours.into_iter().filter(|x| x.is_alive()).count());
     }
 
     Err(From::from("illegal cell position accessed"))

@@ -10,6 +10,7 @@ use std::time::Duration;
 // TODO: Add documentation
 // TODO: Split project up in modules
 // TODO: Add Crossterm for terminal access to clear screen
+// TODO: Add user options
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 type Matrix = Vec<Vec<Cell>>;
@@ -85,7 +86,7 @@ impl Grid {
 
                     Ok(prev[i][j].set_state(num_living_neighbours))
                 })
-                .collect::<MyResult<Vec<Cell>>>()
+                .collect()
             )
             .collect::<MyResult<Matrix>>();
 

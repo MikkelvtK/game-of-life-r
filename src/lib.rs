@@ -1,11 +1,15 @@
 use std::error::Error;
-use std::io::{self, BufWriter, Write};
+use std::io::Write;
+use std::io;
 use std::ops::{Index, Range};
 use std::thread;
 use std::time::Duration;
 
 // TODO: Follow project naming conventions
 // TODO: Look up usefull derive traits for Grid struct
+// TODO: Add documentation
+// TODO: Split project up in modules
+// TODO: Add Crossterm for terminal access to clear screen
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 type Matrix = Vec<Vec<Cell>>;
@@ -14,6 +18,7 @@ const WIDTH: usize = 60;
 const HEIGHT: usize = 20;
 const LIVING_CELL: u8 = b'#';
 const DEAD_CELL: u8 = b' ';
+const SEPARATOR: [u8; 5] = [b'\n'; 5];
 
 #[derive(Debug)]
 enum Cell {
@@ -84,7 +89,7 @@ impl Grid {
             )
             .collect::<MyResult<Matrix>>();
 
-        Ok(Grid { data: data?, width: prev.width, height: prev.height })
+        Ok(Self { data: data?, width: prev.width, height: prev.height })
     }
 
     fn get_neighbours(&self, p: Pos) -> Vec<&Cell>{
@@ -102,15 +107,17 @@ impl Grid {
         cell_pos.0 < self.width && cell_pos.1 < self.height
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
-        self.data
-            .iter()
-            .flat_map(|col| col.iter().map(|cell| {
-                match cell {
+    fn to_bytes(&self) -> Vec<Vec<u8>> {
+        let height_range = 0..self.height;
+        let width_range = 0..self.width;
+
+        height_range
+            .map(|n| width_range.clone().map(|m| {
+                match &self[m][n] {
                     Cell::Living(b) => *b,
                     Cell::Dead(b) => *b
                 }
-            }))
+            }).collect())
             .collect()
     }
 
@@ -132,27 +139,36 @@ impl Index<usize> for Grid {
 }
 
 pub fn run() -> MyResult<()> {
-    let grid = Grid::default();
-    let handle = io::stdout().lock();
-    let mut writer = BufWriter::new(handle);
+    let mut grid = Grid::default();
+    let mut handler = io::stdout().lock();
 
-    writer.write_all(&grid.to_bytes())?;
+    print_grid(&grid, &mut handler)?;
 
     let mut n = 0;
-
-    // TODO: Write width amount of bytes => Write \n
     loop {
-        let grid = Grid::from(&grid)?;
+        grid = Grid::from(&grid)?;
 
-        writer.write_all(&grid.to_bytes())?;
+        print_grid(&grid, &mut handler)?;
 
         thread::sleep(Duration::from_secs(1));
         n += 1;
 
-        if n == 20 {
+        if n == 60 {
             break
         }
     }
+
+    Ok(())
+}
+
+fn print_grid(grid: &Grid, mut handler: impl Write) -> MyResult<()> {
+    let bytes = grid.to_bytes();
+    handler.write(&SEPARATOR)?;
+    for line in bytes {
+        handler.write_all(&line)?;
+        handler.write(b"\n")?;
+    }
+    handler.flush()?;
 
     Ok(())
 }

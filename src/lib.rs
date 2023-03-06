@@ -6,10 +6,7 @@ use std::time::Duration;
 
 use crate::game::Grid;
 
-// TODO: Follow project naming conventions
-// TODO: Look up usefull derive traits for Grid struct
 // TODO: Add documentation
-// TODO: Split project up in modules
 // TODO: Add Crossterm for terminal access
 // - Give user to stop simulation gracefully
 // - Center grid
@@ -17,6 +14,7 @@ use crate::game::Grid;
 // TODO: Add user options
 
 mod game;
+mod terminal;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 

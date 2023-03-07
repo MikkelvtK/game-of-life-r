@@ -1,20 +1,18 @@
 use std::error::Error;
 use std::fmt;
-use std::fmt::Debug;
 use std::io;
 use std::io::Write;
 
 use crossterm::terminal;
-
-use crate::game::Grid;
+use crossterm::terminal::SetSize;
+use crossterm::ExecutableCommand;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
-#[derive(Debug)]
-pub struct Display<T: Write + Debug> {
+pub struct Display {
     size_screen: (u16, u16),
     size_grid: (u16, u16),
-    handler: T,
+    handler: Box<dyn Write>,
 }
 
 pub struct DisplayBuilder {
@@ -24,10 +22,7 @@ pub struct DisplayBuilder {
     handler: Box<dyn Write>,
 }
 
-impl<T> Display<T>
-where
-    T: Write + Debug,
-{
+impl Display {
     pub fn reset_cursor_position(self) -> Self {
         unimplemented!()
     }
@@ -36,7 +31,13 @@ where
         unimplemented!()
     }
 
-    pub fn print_grid(self, grid: &Grid) -> Self {
+    pub fn print_grid(self, grid: &[u8]) -> Self {
+        unimplemented!()
+    }
+}
+
+impl fmt::Debug for Display {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unimplemented!()
     }
 }
@@ -53,8 +54,39 @@ impl DisplayBuilder {
         })
     }
 
-    pub fn grid_width(self, width: u16) -> Self {
-        unimplemented!()
+    pub fn grid_width(mut self, width: u16) -> MyResult<()> {
+        if width > self.screen_size.0 {
+            self.screen_size.0 = width + 10;
+            self.handler
+                .execute(SetSize(self.screen_size.0, self.screen_size.1))?;
+        }
+
+        self.grid_width = Some(width);
+        Ok(())
+    }
+
+    pub fn grid_height(mut self, height: u16) -> MyResult<()> {
+        if height > self.screen_size.1 {
+            self.screen_size.1 = height + 10;
+            self.handler
+                .execute(SetSize(self.screen_size.0, self.screen_size.1))?;
+        }
+
+        self.grid_height = Some(height);
+        Ok(())
+    }
+
+    pub fn build(self) -> Display {
+        let size_grid = (
+            self.grid_width.expect("Please set a grid_width"),
+            self.grid_height.expect("Please set a grid_height"),
+        );
+
+        Display {
+            size_screen: self.screen_size,
+            size_grid,
+            handler: self.handler,
+        }
     }
 }
 

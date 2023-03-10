@@ -2,9 +2,10 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 use std::io::Write;
+use std::thread;
+use std::time::Duration;
 
 use crossterm::cursor;
-use crossterm::terminal;
 use crossterm::terminal::SetSize;
 use crossterm::ExecutableCommand;
 
@@ -12,24 +13,24 @@ type MyResult<T> = Result<T, Box<dyn Error>>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
-    col: u16,
-    row: u16,
+    col: usize,
+    row: usize,
 }
 
 impl Point {
-    pub fn new(col: u16, row: u16) -> Self {
+    pub fn new(col: usize, row: usize) -> Self {
         Self { col, row }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Size {
-    width: u16,
-    height: u16,
+    width: usize,
+    height: usize,
 }
 
 impl Size {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self { width, height }
     }
 }
@@ -41,140 +42,135 @@ pub struct Display {
     handler: Box<dyn Write>,
 }
 
+#[derive(Debug)]
 pub struct DisplayBuilder {
-    screen: Size,
-    grid_width: Option<u16>,
-    grid_height: Option<u16>,
-    handler: Box<dyn Write>,
+    screen: Option<Size>,
+    grid: Option<Size>,
 }
 
 impl Display {
+    pub fn builder() -> DisplayBuilder {
+        DisplayBuilder::default()
+    }
+
     fn reset_cursor_position(&mut self) -> MyResult<()> {
-        self.handler
-            .execute(cursor::MoveTo(self.cursor.col, self.cursor.row))?;
+        self.handler.execute(cursor::MoveTo(
+            self.cursor.col as u16,
+            self.cursor.row as u16,
+        ))?;
 
         Ok(())
     }
 
     pub fn print_border(&mut self) -> MyResult<()> {
+        unimplemented!()
+    }
+
+    pub fn print_grid(&mut self, grid: &[u8]) -> MyResult<()> {
+        let mut line_start = 0;
+
+        while line_start != self.grid.width * self.grid.height {
+            let next_line = line_start..line_start + self.grid.width;
+            let bytes_written = self.handler.write(&grid[next_line])?;
+            self.handler.write(b"\n")?;
+            line_start += bytes_written;
+        }
+
+        self.handler.flush()?;
+        thread::sleep(Duration::from_secs(1));
         self.reset_cursor_position()?;
 
         Ok(())
-    }
-
-    pub fn print_grid(self, grid: &[u8]) -> Self {
-        unimplemented!()
     }
 }
 
 impl fmt::Debug for Display {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unimplemented!()
-    }
-}
-
-impl DisplayBuilder {
-    pub fn new() -> MyResult<Self> {
-        let stdout = io::stdout();
-        let screen = terminal::size()?;
-
-        Ok(Self {
-            screen: Size::new(screen.0, screen.1),
-            grid_width: None,
-            grid_height: None,
-            handler: Box::new(stdout),
-        })
-    }
-
-    pub fn grid_width(&mut self, width: u16) -> MyResult<&mut Self> {
-        if width > self.screen.width {
-            self.screen.width = width + 10;
-            self.handler
-                .execute(SetSize(self.screen.width, self.screen.height))?;
-        }
-
-        self.grid_width = Some(width);
-        Ok(self)
-    }
-
-    pub fn grid_height(&mut self, height: u16) -> MyResult<&mut Self> {
-        if height > self.screen.height {
-            self.screen.height = height + 10;
-            self.handler
-                .execute(SetSize(self.screen.width, self.screen.height))?;
-        }
-
-        self.grid_height = Some(height);
-        Ok(self)
-    }
-
-    pub fn build(&mut self) -> Display {
-        let size_grid = (
-            self.grid_width.expect("Please set a grid_width"),
-            self.grid_height.expect("Please set a grid_height"),
-        );
-
-        let col = self.screen.width / 2 - size_grid.0 / 2;
-        let row = self.screen.height / 2 - size_grid.1 / 2;
-
-        Display {
-            screen: self.screen,
-            grid: Size::new(size_grid.0, size_grid.1),
-            cursor: Point::new(col, row),
-            handler: Box::new(io::stdout()),
-        }
-    }
-}
-
-impl fmt::Debug for DisplayBuilder {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DisplayBuilder")
-            .field("screen_size", &self.screen)
-            .field("grid_width", &self.grid_width)
-            .field("grid_height", &self.grid_height)
+        f.debug_struct("Display")
+            .field("screen", &self.screen)
+            .field("grid", &self.grid)
+            .field("cursor", &self.cursor)
             .field("handler", &"Box<dyn Write>")
             .finish()
     }
 }
 
+impl DisplayBuilder {
+    pub fn default() -> Self {
+        Self {
+            screen: None,
+            grid: None,
+        }
+    }
+
+    fn calc_default_cursor(grid: Size, screen: Size) -> Point {
+        Point {
+            col: screen.width / 2 - grid.width / 2,
+            row: screen.height / 2 - grid.height / 2,
+        }
+    }
+
+    pub fn screen(mut self, width: usize, height: usize) -> Self {
+        self.screen = Some(Size::new(width, height));
+        self
+    }
+
+    pub fn grid(mut self, width: usize, height: usize) -> Self {
+        self.grid = Some(Size::new(width, height));
+        self
+    }
+
+    pub fn build(mut self) -> MyResult<Display> {
+        let mut stdout = io::stdout();
+
+        let mut screen = self.screen.expect("Please set the screen size");
+        let grid = self.grid.expect("Please set the grid size");
+
+        if grid.width > screen.width {
+            screen.width = grid.width + 10;
+        }
+
+        if grid.height > screen.height {
+            screen.height = grid.height + 10;
+        }
+
+        if screen != self.screen.unwrap() {
+            stdout.execute(SetSize(screen.width as u16, screen.height as u16))?;
+        }
+
+        Ok(Display {
+            screen,
+            grid,
+            cursor: Self::calc_default_cursor(grid, screen),
+            handler: Box::new(stdout),
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::DisplayBuilder;
-    use crossterm::{cursor, terminal, ExecutableCommand};
-    use std::io;
+    use super::{Display, Size};
+    use crossterm::{cursor, terminal};
 
     #[test]
     fn test_display_reset_cursor() {
         println!("Screen size: {:?}", terminal::size().unwrap());
-        let mut display = DisplayBuilder::new()
-            .unwrap()
-            .grid_height(10)
-            .unwrap()
-            .grid_width(10)
-            .unwrap()
-            .build();
+        let display = Display::builder().screen(12, 12).grid(10, 10).build();
+        assert!(display.is_ok());
 
-        let res = display.reset_cursor_position();
+        let res = display.unwrap().reset_cursor_position();
         assert!(res.is_ok());
-        assert_eq!(cursor::position().unwrap(), (57, 7));
+        assert_eq!(cursor::position().unwrap(), (1, 1));
     }
 
     #[test]
     fn test_display_builder() {
         // Happy flow
-        let builder = DisplayBuilder::new();
-        assert!(builder.is_ok());
-        let mut builder = builder.unwrap();
+        let display = Display::builder().screen(40, 40).grid(50, 50).build();
 
-        let res = builder.grid_width(50);
-        assert!(res.is_ok());
-
-        let res = builder.grid_height(50);
-        assert!(res.is_ok());
-
-        let display = builder.build();
+        assert!(display.is_ok());
         assert_eq!(
-            display.grid,
+            display.unwrap().grid,
             Size {
                 width: 50,
                 height: 50
@@ -182,22 +178,14 @@ mod test {
         );
 
         // Resize screen
-        let builder = DisplayBuilder::new();
-        assert!(builder.is_ok());
-        let mut builder = builder.unwrap();
+        let display = Display::builder().screen(10, 10).grid(20, 20).build();
+        assert!(display.is_ok());
 
-        let res = builder.grid_width(5000);
-        assert!(res.is_ok());
-
-        let res = builder.grid_height(5000);
-        assert!(res.is_ok());
-
-        let display = builder.build();
         assert_eq!(
-            display.screen,
+            display.unwrap().screen,
             Size {
-                width: 5010,
-                height: 5010
+                width: 30,
+                height: 30
             }
         );
     }

@@ -1,13 +1,17 @@
 use std::error::Error;
 use std::fmt;
 use std::io;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::thread;
 use std::time::Duration;
 
 use crossterm::cursor;
-use crossterm::terminal::SetSize;
+use crossterm::terminal::{Clear, ClearType, SetSize};
 use crossterm::ExecutableCommand;
+
+// TODO: Implement the border
+// TODO: Queue commands
+// TODO: Fix remaining bugs
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -18,8 +22,8 @@ pub struct Point {
 }
 
 impl Point {
-    pub fn new(col: usize, row: usize) -> Self {
-        Self { col, row }
+    fn new_line(&mut self) {
+        self.row += 1;
     }
 }
 
@@ -53,11 +57,23 @@ impl Display {
         DisplayBuilder::default()
     }
 
-    fn reset_cursor_position(&mut self) -> MyResult<()> {
+    pub fn clear(&mut self) -> MyResult<()> {
+        self.handler.execute(Clear(ClearType::All))?;
+
+        Ok(())
+    }
+
+    fn reset_cursor(&mut self) {
+        self.cursor = DisplayBuilder::calc_default_cursor(self.grid, self.screen);
+    }
+
+    fn move_cursor(&mut self) -> MyResult<()> {
         self.handler.execute(cursor::MoveTo(
             self.cursor.col as u16,
             self.cursor.row as u16,
         ))?;
+
+        self.handler.execute(cursor::Hide)?;
 
         Ok(())
     }
@@ -68,17 +84,20 @@ impl Display {
 
     pub fn print_grid(&mut self, grid: &[u8]) -> MyResult<()> {
         let mut line_start = 0;
+        self.move_cursor()?;
 
         while line_start != self.grid.width * self.grid.height {
             let next_line = line_start..line_start + self.grid.width;
             let bytes_written = self.handler.write(&grid[next_line])?;
-            self.handler.write(b"\n")?;
+            self.cursor.new_line();
+            self.move_cursor()?;
             line_start += bytes_written;
         }
 
         self.handler.flush()?;
         thread::sleep(Duration::from_secs(1));
-        self.reset_cursor_position()?;
+        self.reset_cursor();
+        self.move_cursor()?;
 
         Ok(())
     }
@@ -121,7 +140,7 @@ impl DisplayBuilder {
     }
 
     pub fn build(mut self) -> MyResult<Display> {
-        let mut stdout = io::stdout();
+        let mut stdout = BufWriter::new(io::stdout().lock());
 
         let mut screen = self.screen.expect("Please set the screen size");
         let grid = self.grid.expect("Please set the grid size");
@@ -158,8 +177,6 @@ mod test {
         let display = Display::builder().screen(12, 12).grid(10, 10).build();
         assert!(display.is_ok());
 
-        let res = display.unwrap().reset_cursor_position();
-        assert!(res.is_ok());
         assert_eq!(cursor::position().unwrap(), (1, 1));
     }
 

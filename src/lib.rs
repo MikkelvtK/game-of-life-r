@@ -24,12 +24,14 @@ pub fn run() -> MyResult<()> {
         .grid(grid.width(), grid.height())
         .build()?;
 
+    display.clear()?;
     display.print_grid(&grid.to_bytes())?;
 
     let mut n = 0;
     loop {
         grid = Grid::from(&grid)?;
 
+        display.clear()?;
         display.print_grid(&grid.to_bytes())?;
 
         n += 1;

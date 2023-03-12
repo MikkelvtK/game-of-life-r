@@ -1,25 +1,17 @@
 use std::ops::Range;
 
-use super::Grid;
+use super::World;
 use crate::MyResult;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Pos {
-    i: usize,
-    j: usize,
+    pub i: u32,
+    pub j: u32,
 }
 
 impl Pos {
-    pub fn new(i: usize, j: usize) -> Self {
+    pub fn new(i: u32, j: u32) -> Self {
         Self { i, j }
-    }
-
-    pub fn i(&self) -> usize {
-        self.i
-    }
-
-    pub fn j(&self) -> usize {
-        self.j
     }
 }
 

@@ -4,6 +4,7 @@ use crate::game::Grid;
 use crate::terminal::Display;
 
 // TODO: Add documentation
+// TODO: Refactor game module
 // TODO: Add Crossterm for terminal access
 // - Give user to stop simulation gracefully
 // - Center grid

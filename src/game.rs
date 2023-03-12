@@ -1,208 +1,116 @@
+use core::fmt;
 use std::{error::Error, ops::Index};
 
 use crate::game::util::Pos;
 
 pub mod util;
+mod world_parts;
 
 const WIDTH: usize = 60;
 const HEIGHT: usize = 20;
 const LIVING_CELL: u8 = b'#';
 const DEAD_CELL: u8 = b' ';
 
-type Matrix = Vec<Vec<Cell>>;
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
-#[derive(Debug, PartialEq)]
+pub struct Row<'a> {
+    cells: Vec<&'a Cell>,
+}
+
+impl<'a> fmt::Display for Row<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for cell in self.cells {
+            let symbol = if *cell == Cell::Alive { '#' } else { ' ' };
+            write!(f, "{}", symbol)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Cell {
-    Living(u8),
-    Dead(u8),
+    Alive,
+    Dead,
 }
 
 impl Cell {
     fn is_alive(&self) -> bool {
         match self {
-            Cell::Living(_) => true,
-            Cell::Dead(_) => false,
+            Cell::Alive => true,
+            Cell::Dead => false,
         }
     }
 
-    fn set_state(&self, n: usize) -> Self {
+    fn set_state(self, n: usize) -> Self {
         match self {
-            Cell::Living(_) if n == 3 || n == 2 => Self::Living(LIVING_CELL),
-            Cell::Dead(_) if n == 3 => Self::Living(LIVING_CELL),
-            _ => Self::Dead(DEAD_CELL),
+            Cell::Alive if n == 3 || n == 2 => Self::Alive,
+            Cell::Dead if n == 3 => Self::Dead,
+            _ => Self::Dead,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Grid {
-    data: Matrix,
-    width: usize,
-    height: usize,
+#[derive(Clone, Debug, PartialEq)]
+pub struct World {
+    grid: Vec<Cell>,
+    width: u32,
+    height: u32,
 }
 
-impl Grid {
-    pub fn new(width: usize, height: usize) -> Self {
-        let i_range = 0..width;
-        let j_range = 0..height;
+impl World {
+    pub fn new(width: u32, height: u32) -> Self {
+        // The new function will create a new grid and set the initial state of
+        // all cells to dead. After which it will use an iterator to set random
+        // cells to Alive.
+        let mut grid = vec![Cell::Dead; (width * height) as usize];
 
-        let data = i_range
-            .map(|_| {
-                j_range
-                    .clone()
-                    .map(|_| {
-                        if rand::random() {
-                            Cell::Living(LIVING_CELL)
-                        } else {
-                            Cell::Dead(DEAD_CELL)
-                        }
-                    })
-                    .collect()
-            })
-            .collect::<Matrix>();
+        grid.iter().map(|cell| {
+            if rand::random() {
+                *cell = Cell::Alive;
+            }
+        });
 
         Self {
-            data,
+            grid,
             width,
             height,
         }
     }
 
-    pub fn width(&self) -> usize {
-        self.width
+    fn get_index(&self, row: u32, col: u32) -> usize {
+        (row * self.height + col) as usize
     }
 
-    pub fn height(&self) -> usize {
-        self.height
+    pub fn evolve(&mut self) {
+        // The function creates a clone of the old grid and then sets the state of each
+        // new cell based on the circumstances of the old grid. Finally it sets the grid
+        // field of World to the new grid.
+        let mut new_grid = self.grid.clone();
+
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let idx = self.get_index(row, col);
+                let num_neighbours = self.get_num_alive_neighbours(idx);
+                new_grid[idx] = self.grid[idx].set_state(num_neighbours);
+            }
+        }
+
+        self.grid = new_grid;
     }
 
-    pub fn from(prev: &Grid) -> MyResult<Self> {
-        let i_range = 0..prev.width;
-        let j_range = 0..prev.height;
-
-        let data = i_range
-            .map(|i| {
-                j_range
-                    .clone()
-                    .map(|j| {
-                        let num_living_neighbours =
-                            util::num_living_neighbours(Pos::new(i, j), &prev)?;
-
-                        Ok(prev[i][j].set_state(num_living_neighbours))
-                    })
-                    .collect()
-            })
-            .collect::<MyResult<Matrix>>();
-
-        Ok(Self {
-            data: data?,
-            width: prev.width,
-            height: prev.height,
-        })
-    }
-
-    fn get_neighbours(&self, p: Pos) -> Vec<&Cell> {
-        let i_range = util::get_neighbours_range(p.i(), self.width);
-        let j_range = util::get_neighbours_range(p.j(), self.height);
-
-        i_range
-            .flat_map(|i| j_range.clone().map(move |j| Pos::new(i, j)))
-            .filter(|&q| q != p)
-            .map(|q| &self[q.i()][q.j()])
-            .collect()
+    fn get_num_alive_neighbours(&self, index: usize) -> usize {
+        unimplemented!()
     }
 
     fn contains(&self, cell_pos: Pos) -> bool {
-        cell_pos.i() < self.width && cell_pos.j() < self.height
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let height_range = 0..self.height;
-        let width_range = 0..self.width;
-
-        height_range
-            .flat_map(|j| {
-                width_range.clone().map(move |i| match &self[i][j] {
-                    Cell::Living(b) => *b,
-                    Cell::Dead(b) => *b,
-                })
-            })
-            .collect()
+        cell_pos.i < self.width && cell_pos.j < self.height
     }
 }
 
-impl Default for Grid {
-    fn default() -> Self {
-        Self::new(WIDTH, HEIGHT)
-    }
-}
+impl Index<usize> for World {
+    type Output = Cell;
 
-impl Index<usize> for Grid {
-    type Output = Vec<Cell>;
-
-    fn index(&self, i: usize) -> &Vec<Cell> {
-        &self.data[i]
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::Cell::*;
-    use super::{Grid, DEAD_CELL, LIVING_CELL};
-
-    #[test]
-    fn test_grid_from() {
-        let grid = Grid {
-            data: vec![
-                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-                vec![Dead(DEAD_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
-                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-            ],
-            width: 4,
-            height: 3,
-        };
-
-        let should_be = Grid {
-            data: vec![
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-                vec![Living(LIVING_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-            ],
-            width: 4,
-            height: 3,
-        };
-
-        let next = Grid::from(&grid);
-        assert!(next.is_ok());
-        assert_eq!(next.unwrap(), should_be);
-
-        let grid = Grid {
-            data: vec![
-                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-                vec![Dead(DEAD_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
-                vec![Living(LIVING_CELL), Dead(DEAD_CELL), Living(LIVING_CELL)],
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Living(LIVING_CELL)],
-            ],
-            width: 4,
-            height: 3,
-        };
-
-        let should_be = Grid {
-            data: vec![
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Dead(DEAD_CELL)],
-                vec![Living(LIVING_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
-                vec![Dead(DEAD_CELL), Dead(DEAD_CELL), Living(LIVING_CELL)],
-                vec![Dead(DEAD_CELL), Living(LIVING_CELL), Dead(DEAD_CELL)],
-            ],
-            width: 4,
-            height: 3,
-        };
-
-        let next = Grid::from(&grid);
-        assert!(next.is_ok());
-        assert_eq!(next.unwrap(), should_be);
+    fn index(&self, i: usize) -> &Cell {
+        &self.grid[i]
     }
 }

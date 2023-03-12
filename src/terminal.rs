@@ -8,6 +8,7 @@ use std::time::Duration;
 use crossterm::cursor;
 use crossterm::terminal::{Clear, ClearType, SetSize};
 use crossterm::ExecutableCommand;
+use crossterm::QueueableCommand;
 
 // TODO: Implement the border
 // TODO: Queue commands
@@ -39,6 +40,37 @@ impl Size {
     }
 }
 
+struct Cursor {
+    default: Point,
+    current: Point,
+}
+
+impl Cursor {
+    fn new(default: Point) -> Self {
+        Self {
+            default,
+            current: default,
+        }
+    }
+
+    fn update(&mut self, update: Point) {
+        self.current = update;
+    }
+
+    fn move_to<T>(&mut self, destination: Point, &mut handler: T) -> MyResult<()>
+    where
+        T: Write,
+    {
+        handler.queue(cursor::MoveTo(
+            destination.col as u16,
+            destination.row as u16,
+        ))?;
+        self.update(destination);
+
+        Ok(())
+    }
+}
+
 pub struct Display {
     screen: Size,
     grid: Size,
@@ -58,7 +90,7 @@ impl Display {
     }
 
     pub fn clear(&mut self) -> MyResult<()> {
-        self.handler.execute(Clear(ClearType::All))?;
+        self.handler.queue(Clear(ClearType::All))?;
 
         Ok(())
     }
@@ -68,12 +100,12 @@ impl Display {
     }
 
     fn move_cursor(&mut self) -> MyResult<()> {
-        self.handler.execute(cursor::MoveTo(
+        self.handler.queue(cursor::MoveTo(
             self.cursor.col as u16,
             self.cursor.row as u16,
         ))?;
 
-        self.handler.execute(cursor::Hide)?;
+        self.handler.queue(cursor::Hide)?;
 
         Ok(())
     }
@@ -97,7 +129,6 @@ impl Display {
         self.handler.flush()?;
         thread::sleep(Duration::from_secs(1));
         self.reset_cursor();
-        self.move_cursor()?;
 
         Ok(())
     }

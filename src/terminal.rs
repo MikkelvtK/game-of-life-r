@@ -18,8 +18,8 @@ type MyResult<T> = Result<T, Box<dyn Error>>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
-    col: usize,
-    row: usize,
+    col: u32,
+    row: u32,
 }
 
 impl Point {
@@ -30,44 +30,13 @@ impl Point {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Size {
-    width: usize,
-    height: usize,
+    width: u32,
+    height: u32,
 }
 
 impl Size {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         Self { width, height }
-    }
-}
-
-struct Cursor {
-    default: Point,
-    current: Point,
-}
-
-impl Cursor {
-    fn new(default: Point) -> Self {
-        Self {
-            default,
-            current: default,
-        }
-    }
-
-    fn update(&mut self, update: Point) {
-        self.current = update;
-    }
-
-    fn move_to<T>(&mut self, destination: Point, &mut handler: T) -> MyResult<()>
-    where
-        T: Write,
-    {
-        handler.queue(cursor::MoveTo(
-            destination.col as u16,
-            destination.row as u16,
-        ))?;
-        self.update(destination);
-
-        Ok(())
     }
 }
 
@@ -115,15 +84,15 @@ impl Display {
     }
 
     pub fn print_grid(&mut self, grid: &[u8]) -> MyResult<()> {
-        let mut line_start = 0;
+        let mut start = 0;
         self.move_cursor()?;
 
-        while line_start != self.grid.width * self.grid.height {
-            let next_line = line_start..line_start + self.grid.width;
-            let bytes_written = self.handler.write(&grid[next_line])?;
+        while start != (self.grid.width * self.grid.height) as usize {
+            let end = start + self.grid.width as usize;
+            let bytes_written = self.handler.write(&grid[start..end])?;
             self.cursor.new_line();
             self.move_cursor()?;
-            line_start += bytes_written;
+            start += bytes_written;
         }
 
         self.handler.flush()?;
@@ -160,12 +129,12 @@ impl DisplayBuilder {
         }
     }
 
-    pub fn screen(mut self, width: usize, height: usize) -> Self {
+    pub fn screen(mut self, width: u32, height: u32) -> Self {
         self.screen = Some(Size::new(width, height));
         self
     }
 
-    pub fn grid(mut self, width: usize, height: usize) -> Self {
+    pub fn grid(mut self, width: u32, height: u32) -> Self {
         self.grid = Some(Size::new(width, height));
         self
     }

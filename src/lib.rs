@@ -18,7 +18,7 @@ mod terminal;
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn run() -> MyResult<()> {
-    let world = World::new(60, 20);
+    let mut world = World::new(60, 20);
     let screen = crossterm::terminal::size()?;
 
     let mut display = Display::builder()
@@ -27,10 +27,14 @@ pub fn run() -> MyResult<()> {
         .build()?;
 
     display.clear()?;
+    display.print_grid(&world)?;
 
     let mut n = 0;
     loop {
+        world.evolve();
+
         display.clear()?;
+        display.print_grid(&world)?;
 
         n += 1;
         if n == 60 {

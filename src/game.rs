@@ -1,7 +1,6 @@
 use core::fmt;
 use std::{error::Error, ops::Index};
 
-pub mod util;
 mod world_parts;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -19,7 +18,7 @@ impl<'a> Row<'a> {
 impl<'a> fmt::Display for Row<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for cell in self.cells {
-            let symbol = if cell.is_alive() { b'#' } else { b' ' };
+            let symbol = if cell.is_alive() { '#' } else { ' ' };
             write!(f, "{}", symbol)?;
         }
         Ok(())
@@ -79,6 +78,12 @@ impl World {
 
     fn get_index(&self, row: u32, col: u32) -> usize {
         (row * self.height + col) as usize
+    }
+
+    pub fn get_row(&self, row: u32) -> &[Cell] {
+        let start = (row * self.height) as usize;
+        let end = (row * self.height + self.width) as usize;
+        &self.grid[start..end]
     }
 
     pub fn evolve(&mut self) {

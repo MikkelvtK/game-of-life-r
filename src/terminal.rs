@@ -6,9 +6,15 @@ use std::thread;
 use std::time::Duration;
 
 use crossterm::cursor;
+use crossterm::cursor::MoveTo;
+use crossterm::queue;
+use crossterm::style::Print;
 use crossterm::terminal::{Clear, ClearType, SetSize};
 use crossterm::ExecutableCommand;
 use crossterm::QueueableCommand;
+
+use crate::game::Row;
+use crate::game::World;
 
 // TODO: Implement the border
 // TODO: Queue commands
@@ -83,16 +89,18 @@ impl Display {
         unimplemented!()
     }
 
-    pub fn print_grid(&mut self, grid: &[u8]) -> MyResult<()> {
-        let mut start = 0;
+    pub fn print_grid(&mut self, world: &World) -> MyResult<()> {
         self.move_cursor()?;
 
-        while start != (self.grid.width * self.grid.height) as usize {
-            let end = start + self.grid.width as usize;
-            let bytes_written = self.handler.write(&grid[start..end])?;
+        for row in 0..world.height {
+            let cells = world.get_row(row);
+            let cells = Row::new(cells);
+            queue!(
+                self.handler,
+                MoveTo(self.cursor.col as u16, self.cursor.row as u16),
+                Print(&cells)
+            )?;
             self.cursor.new_line();
-            self.move_cursor()?;
-            start += bytes_written;
         }
 
         self.handler.flush()?;
@@ -139,7 +147,7 @@ impl DisplayBuilder {
         self
     }
 
-    pub fn build(mut self) -> MyResult<Display> {
+    pub fn build(self) -> MyResult<Display> {
         let mut stdout = BufWriter::new(io::stdout().lock());
 
         let mut screen = self.screen.expect("Please set the screen size");

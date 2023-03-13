@@ -1,9 +1,8 @@
 use core::fmt;
-use std::{error::Error, ops::Index};
+use rand::Rng;
+use std::ops::Index;
 
 mod world_parts;
-
-type MyResult<T> = Result<T, Box<dyn Error>>;
 
 pub struct Row<'a> {
     cells: &'a [Cell],
@@ -62,9 +61,10 @@ impl World {
         // all cells to dead. After which it will use an iterator to set random
         // cells to Alive.
         let mut grid = vec![Cell::Dead; (width * height) as usize];
+        let mut rng = rand::thread_rng();
 
         for cell in grid.iter_mut() {
-            if rand::random() {
+            if rng.gen::<bool>() {
                 *cell = Cell::Alive;
             }
         }
@@ -77,12 +77,12 @@ impl World {
     }
 
     fn get_index(&self, row: u32, col: u32) -> usize {
-        (row * self.height + col) as usize
+        (row * self.width + col) as usize
     }
 
     pub fn get_row(&self, row: u32) -> &[Cell] {
-        let start = (row * self.height) as usize;
-        let end = (row * self.height + self.width) as usize;
+        let start = (row * self.width) as usize;
+        let end = ((row + 1) * self.width) as usize;
         &self.grid[start..end]
     }
 
@@ -139,6 +139,21 @@ mod test {
     use crate::game::World;
 
     #[test]
+    fn test_world_get_row() {
+        let world = World {
+            grid: vec![Dead, Dead, Dead, Alive, Alive, Alive],
+            width: 3,
+            height: 2,
+        };
+
+        let row = world.get_row(0);
+        assert_eq!(vec![Dead, Dead, Dead], row);
+
+        let row = world.get_row(1);
+        assert_eq!(vec![Alive, Alive, Alive], row);
+    }
+
+    #[test]
     fn test_cell_is_alive() {
         let a = Alive;
         assert_eq!(a.is_alive(), true);
@@ -158,7 +173,7 @@ mod test {
         let result = world.get_num_alive_neighbours(1, 1);
         assert_eq!(result, 3);
 
-        let mut world = World {
+        let world = World {
             grid: vec![Dead, Alive, Dead, Dead, Alive, Dead, Dead, Alive, Dead],
             width: 3,
             height: 3,

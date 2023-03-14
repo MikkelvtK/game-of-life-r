@@ -1,52 +1,8 @@
-use core::fmt;
 use rand::Rng;
 use std::ops::Index;
+use world_parts::Cell;
 
-mod world_parts;
-
-pub struct Row<'a> {
-    cells: &'a [Cell],
-}
-
-impl<'a> Row<'a> {
-    pub fn new(cells: &'a [Cell]) -> Row<'a> {
-        Self { cells }
-    }
-}
-
-impl<'a> fmt::Display for Row<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for cell in self.cells {
-            let symbol = if cell.is_alive() { '#' } else { ' ' };
-            write!(f, "{}", symbol)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Cell {
-    Alive,
-    Dead,
-}
-
-impl Cell {
-    fn is_alive(&self) -> bool {
-        match self {
-            Cell::Alive => true,
-            Cell::Dead => false,
-        }
-    }
-
-    fn set_state(&self, n: u8) -> Self {
-        match (self, n) {
-            (Self::Alive, 3) => Self::Alive,
-            (Self::Alive, 2) => Self::Alive,
-            (Self::Dead, 3) => Self::Alive,
-            (_, _) => Self::Dead,
-        }
-    }
-}
+pub mod world_parts;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct World {
@@ -76,6 +32,7 @@ impl World {
         }
     }
 
+    // TODO: Create custom error for out of bound situations
     fn get_index(&self, row: u32, col: u32) -> usize {
         (row * self.width + col) as usize
     }
@@ -135,8 +92,26 @@ impl Index<usize> for World {
 
 #[cfg(test)]
 mod test {
-    use crate::game::Cell::*;
+    use crate::game::world_parts::Cell::*;
     use crate::game::World;
+
+    #[test]
+    fn test_get_index() {
+        let world = World {
+            grid: vec![Dead, Dead, Dead, Alive, Alive, Alive],
+            width: 3,
+            height: 2,
+        };
+
+        let idx = world.get_index(1, 1);
+        assert_eq!(idx, 4);
+
+        let idx = world.get_index(0, 2);
+        assert_eq!(idx, 2);
+
+        let idx = world.get_index(2, 4);
+        assert_eq!(idx, 7);
+    }
 
     #[test]
     fn test_world_get_row() {
@@ -151,15 +126,6 @@ mod test {
 
         let row = world.get_row(1);
         assert_eq!(vec![Alive, Alive, Alive], row);
-    }
-
-    #[test]
-    fn test_cell_is_alive() {
-        let a = Alive;
-        assert_eq!(a.is_alive(), true);
-
-        let b = Dead;
-        assert_eq!(b.is_alive(), false);
     }
 
     #[test]

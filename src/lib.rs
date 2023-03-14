@@ -1,8 +1,20 @@
-use std::error::Error;
+use std::{
+    error::Error,
+    io::{self, BufWriter, Write},
+    thread,
+    time::Duration,
+};
 
+use crossterm::{
+    cursor::{Hide, MoveTo},
+    execute, queue,
+    style::Print,
+    terminal,
+    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use game::World;
 
-use crate::terminal::Display;
+use crate::game::world_parts::Row;
 
 // TODO: Add documentation
 // TODO: Refactor game module
@@ -13,28 +25,37 @@ use crate::terminal::Display;
 // TODO: Add user options
 
 mod game;
-mod terminal;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn run() -> MyResult<()> {
+    let mut stdout = BufWriter::new(io::stdout().lock());
     let mut world = World::new(60, 20);
-    let screen = crossterm::terminal::size()?;
-
-    let mut display = Display::builder()
-        .screen(screen.0 as u32, screen.1 as u32)
-        .grid(world.width, world.height)
-        .build()?;
-
-    display.clear()?;
-    display.print_grid(&world)?;
+    let screen = terminal::size()?;
+    let cursor = (
+        screen.0 / 2 - (world.width / 2) as u16,
+        screen.1 / 2 - (world.height / 2) as u16,
+    );
 
     let mut n = 0;
+    queue!(stdout, Hide, EnterAlternateScreen)?;
     loop {
-        world.evolve();
+        queue!(stdout, Clear(ClearType::All))?;
 
-        display.clear()?;
-        display.print_grid(&world)?;
+        for row in 0..world.height {
+            let cells = world.get_row(row);
+            let cells = Row::new(cells);
+
+            queue!(
+                stdout,
+                MoveTo(cursor.0, cursor.1 + row as u16),
+                Print(&cells)
+            )?;
+        }
+
+        stdout.flush()?;
+        world.evolve();
+        thread::sleep(Duration::from_secs(1));
 
         n += 1;
         if n == 60 {
@@ -42,5 +63,6 @@ pub fn run() -> MyResult<()> {
         }
     }
 
+    execute!(stdout, LeaveAlternateScreen)?;
     Ok(())
 }

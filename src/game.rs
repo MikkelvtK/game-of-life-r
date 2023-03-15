@@ -6,7 +6,7 @@ pub mod world_parts;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct World {
-    grid: Vec<Cell>,
+    pub grid: Vec<Cell>,
     pub width: u32,
     pub height: u32,
 }
@@ -35,12 +35,6 @@ impl World {
     // TODO: Create custom error for out of bound situations
     fn get_index(&self, row: u32, col: u32) -> usize {
         (row * self.width + col) as usize
-    }
-
-    pub fn get_row(&self, row: u32) -> &[Cell] {
-        let start = (row * self.width) as usize;
-        let end = ((row + 1) * self.width) as usize;
-        &self.grid[start..end]
     }
 
     pub fn evolve(&mut self) {

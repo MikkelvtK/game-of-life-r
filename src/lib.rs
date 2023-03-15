@@ -7,10 +7,10 @@ use std::{
 
 use crossterm::{
     cursor::{Hide, MoveTo},
-    execute, queue,
+    queue,
     style::Print,
     terminal,
-    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{Clear, ClearType},
 };
 use game::World;
 
@@ -38,19 +38,13 @@ pub fn run() -> MyResult<()> {
     );
 
     let mut n = 0;
-    queue!(stdout, Hide, EnterAlternateScreen)?;
+    queue!(stdout, Hide)?;
     loop {
         queue!(stdout, Clear(ClearType::All))?;
 
-        for row in 0..world.height {
-            let cells = world.get_row(row);
-            let cells = Row::new(cells);
-
-            queue!(
-                stdout,
-                MoveTo(cursor.0, cursor.1 + row as u16),
-                Print(&cells)
-            )?;
+        for (i, row) in world.grid.chunks(world.width as usize).enumerate() {
+            let cells = Row::new(row);
+            queue!(stdout, MoveTo(cursor.0, cursor.1 + i as u16), Print(&cells))?;
         }
 
         stdout.flush()?;
@@ -63,6 +57,5 @@ pub fn run() -> MyResult<()> {
         }
     }
 
-    execute!(stdout, LeaveAlternateScreen)?;
     Ok(())
 }

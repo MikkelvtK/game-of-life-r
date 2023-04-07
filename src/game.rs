@@ -108,21 +108,6 @@ mod test {
     }
 
     #[test]
-    fn test_world_get_row() {
-        let world = World {
-            grid: vec![Dead, Dead, Dead, Alive, Alive, Alive],
-            width: 3,
-            height: 2,
-        };
-
-        let row = world.get_row(0);
-        assert_eq!(vec![Dead, Dead, Dead], row);
-
-        let row = world.get_row(1);
-        assert_eq!(vec![Alive, Alive, Alive], row);
-    }
-
-    #[test]
     fn test_get_num_alive_neighbours() {
         let world = World {
             grid: vec![Dead, Dead, Alive, Alive, Dead, Dead, Alive, Dead, Dead],

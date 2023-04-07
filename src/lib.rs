@@ -24,11 +24,13 @@ use crate::game::world_parts::Row;
 // - Clear screen after printing
 // TODO: Add user options
 
+mod cli;
 mod game;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn run() -> MyResult<()> {
+    let args = cli::get_args()?;
     let mut stdout = BufWriter::new(io::stdout().lock());
     let mut world = World::new(60, 20);
     let screen = terminal::size()?;
@@ -52,7 +54,7 @@ pub fn run() -> MyResult<()> {
         thread::sleep(Duration::from_secs(1));
 
         n += 1;
-        if n == 60 {
+        if n == args.lifespan() {
             break;
         }
     }
